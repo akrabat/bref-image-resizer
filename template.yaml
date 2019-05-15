@@ -37,11 +37,5 @@ Resources:
                 Variables:
                     PROJECT_NAME: !Ref "ProjectName"
             Policies:
-                # List of prebuilt policies: https://gist.github.com/gene1wood/55b358748be3c314f956
-                # S3 permissions: https://docs.aws.amazon.com/AmazonS3/latest/dev/using-with-s3-actions.html
-                - Statement:
-                    - Sid: FunctionPermissions
-                      Effect: Allow
-                      Action:
-                          - s3:*
-                      Resource: '*'
+                - S3CrudPolicy:
+                    BucketName: !Sub "${ProjectName}-${UniqueKey}-images"
