@@ -1,0 +1,4 @@
+vendor/
+Makefile
+.stack-template.yaml
+error.txt

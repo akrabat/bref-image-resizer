@@ -1,0 +1,47 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'Imager resizer'
+
+Parameters:
+    ProjectName:
+        Type: String
+    UniqueKey:
+        Type: String
+
+Resources:
+    ImagesBucket:
+        Type: AWS::S3::Bucket
+        Properties:
+            BucketName: !Sub "${ProjectName}-${UniqueKey}-images"
+
+    ResizeFunction:
+        Type: AWS::Serverless::Function
+        Properties:
+            FunctionName: 'ir-resize'
+            Description: ''
+            CodeUri: .
+            Handler: function-resize.php
+            Timeout: 10 # Timeout in seconds
+            MemorySize: 512 # The memory size is related to the pricing and CPU power
+            Runtime: provided
+            Layers:
+                - 'arn:aws:lambda:eu-west-2:209497400698:layer:php-73:4'
+                - 'arn:aws:lambda:eu-west-2:661969457706:layer:akrabat-bref-extensions:4'
+            Events:
+                CreateThumbnailEvent:
+                    Type: S3
+                    Properties:
+                        Bucket: !Ref ImagesBucket
+                        Events: s3:ObjectCreated:*
+            Environment:
+                Variables:
+                    PROJECT_NAME: !Ref "ProjectName"
+            Policies:
+                # List of prebuilt policies: https://gist.github.com/gene1wood/55b358748be3c314f956
+                # S3 permissions: https://docs.aws.amazon.com/AmazonS3/latest/dev/using-with-s3-actions.html
+                - Statement:
+                    - Sid: FunctionPermissions
+                      Effect: Allow
+                      Action:
+                          - s3:*
+                      Resource: '*'

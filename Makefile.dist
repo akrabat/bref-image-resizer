@@ -1,0 +1,60 @@
+# vim: noexpandtab tabstop=4 filetype=make
+.PHONY: list invoke invoke-local deploy outputs clean clean-all setup geterror lastlog
+
+REGION := eu-west-2
+PROJECT_NAME := image-resizer
+UNIQUE_KEY := 1557903815
+
+BUCKET_NAME := $(PROJECT_NAME)-$(UNIQUE_KEY)-brefapp
+STACK_NAME := $(PROJECT_NAME)-$(UNIQUE_KEY)-brefapp
+
+# default function to invoke. To override: make invoke FUNCTION=foo
+FUNCTION ?= ir-resize
+
+list:
+	@$(MAKE) -pRrq -f $(lastword $(MAKEFILE_LIST)) : 2>/dev/null | awk -v RS= -F: '/^# File/,/^# Finished Make data base/ {if ($$1 !~ "^[#.]") {print $$1}}' | sort | egrep -v -e '^[^[:alnum:]]' -e '^$@$$'
+
+invoke:
+	vendor/bin/bref --region=$(REGION) invoke $(FUNCTION)
+
+invoke-local:
+	sam local invoke $(FUNCTION) --no-event
+
+deploy:
+	rm -f error.txt
+	-sam package \
+		--region $(REGION) \
+		--template-file template.yaml \
+		--output-template-file .stack-template.yaml \
+		--s3-bucket $(BUCKET_NAME) \
+	&& \
+	sam deploy \
+		--region $(REGION) \
+		--template-file .stack-template.yaml \
+		--stack-name $(STACK_NAME) \
+		 --capabilities CAPABILITY_IAM \
+		 --parameter-override "ProjectName=$(PROJECT_NAME)" "UniqueKey=$(UNIQUE_KEY)"
+	vendor/bin/bref deployment --region $(REGION) $(STACK_NAME)
+
+outputs:
+	@aws --region $(REGION) cloudformation describe-stacks --stack-name $(STACK_NAME) | jq '.Stacks[0]["Outputs"]'
+
+url:
+	@aws --region $(REGION) cloudformation describe-stacks --stack-name $(STACK_NAME) | jq -r '.Stacks[0]["Outputs"][0]["OutputValue"]'
+
+clean:
+	aws --region $(REGION) cloudformation delete-stack --stack-name $(STACK_NAME)
+
+clean-all: clean
+	aws --region $(REGION) s3 rb s3://$(BUCKET_NAME) --force
+
+setup:
+	aws --region $(REGION) s3 mb s3://$(BUCKET_NAME)
+
+geterror:
+	aws cloudformation describe-stack-events --stack-name $(STACK_NAME) > error.txt
+	vendor/bin/bref deployment --region $(REGION) $(STACK_NAME)
+
+lastlog:
+	sam logs --region $(REGION) --name $(FUNCTION)
+
